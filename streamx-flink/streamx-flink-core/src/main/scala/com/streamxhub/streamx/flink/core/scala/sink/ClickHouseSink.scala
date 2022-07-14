@@ -63,7 +63,9 @@ object ClickHouseSink {
             property: Properties = new Properties(),
             parallelism: Int = 0,
             name: String = null,
-            uid: String = null)(implicit ctx: StreamingContext): ClickHouseSink = new ClickHouseSink(ctx, property, parallelism, name, uid)
+            uid: String = null,
+            alias: String = ""
+           )(implicit ctx: StreamingContext): ClickHouseSink = new ClickHouseSink(ctx, property, parallelism, name, uid)(alias)
 
 }
 
