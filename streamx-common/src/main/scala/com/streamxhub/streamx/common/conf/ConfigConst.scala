@@ -179,6 +179,11 @@ object ConfigConst {
 
   val KEY_FLINK_TABLE_DATABASE = "flink.table.database"
 
+  // ---development---
+  val KEY_FLINK_DEVELOPMENT_WEBUI_ENABLE: String = "flink.development.webui.enable"
+
+  val KEY_FLINK_DEVELOPMENT_WEBUI_PORT: String = "flink.development.webui.port"
+
   /**
    * about config Kafka
    */

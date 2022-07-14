@@ -26,7 +26,7 @@ import org.apache.flink.api.common.RuntimeExecutionMode
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.time.Time
 import org.apache.flink.api.java.utils.ParameterTool
-import org.apache.flink.configuration.{Configuration, CoreOptions}
+import org.apache.flink.configuration.{ConfigConstants, Configuration, CoreOptions, RestOptions}
 import org.apache.flink.contrib.streaming.state.{DefaultConfigurableOptionsFactory, EmbeddedRocksDBStateBackend}
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend
 import org.apache.flink.runtime.state.storage.{FileSystemCheckpointStorage, JobManagerCheckpointStorage}
@@ -163,7 +163,16 @@ private[flink] class FlinkStreamingInitializer(args: Array[String], apiType: Api
   }
 
   def initStreamEnv(): Unit = {
-    localStreamEnv = StreamExecutionEnvironment.getExecutionEnvironment
+    val webui = Try(parameter.get(KEY_FLINK_DEVELOPMENT_WEBUI_ENABLE).toBoolean).getOrElse(false)
+    if (webui) {
+      val port = Try(parameter.get(KEY_FLINK_DEVELOPMENT_WEBUI_PORT).toInt).getOrElse(8081)
+      val conf: Configuration = new Configuration()
+      // 自定义端口
+      conf.setInteger(RestOptions.PORT, port)
+      localStreamEnv = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI( conf )
+    } else {
+      localStreamEnv = StreamExecutionEnvironment.getExecutionEnvironment
+    }
     //init env...
     Try(parameter.get(KEY_FLINK_PARALLELISM()).toInt).getOrElse {
       Try(parameter.get(CoreOptions.DEFAULT_PARALLELISM.key()).toInt).getOrElse(CoreOptions.DEFAULT_PARALLELISM.defaultValue().toInt)
