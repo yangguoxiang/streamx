@@ -25,7 +25,7 @@ import com.streamxhub.streamx.flink.core.scala.StreamingContext
 import org.apache.flink.api.common.serialization.{SerializationSchema, SimpleStringSchema}
 import org.apache.flink.streaming.api.datastream.DataStreamSink
 import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer
+import org.apache.flink.streaming.connectors.kafka.{FlinkKafkaProducer, KafkaSerializationSchema}
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer.{DEFAULT_KAFKA_PRODUCERS_POOL_SIZE, Semantic}
 import org.apache.flink.streaming.connectors.kafka.internals.KeyedSerializationSchemaWrapper
 import org.apache.flink.streaming.connectors.kafka.partitioner.FlinkKafkaPartitioner
@@ -90,6 +90,38 @@ class KafkaSink(@(transient@param) val ctx: StreamingContext,
         case part => Optional.of(part)
       }
       new FlinkKafkaProducer[T](topicId, schema, prop, customPartitioner, semantic, DEFAULT_KAFKA_PRODUCERS_POOL_SIZE)
+    }
+
+    /**
+     * versions 0.10+ allow attaching the records' event timestamp when writing them to Kafka;
+     * this method is not available for earlier Kafka versions
+     */
+    producer.setWriteTimestampToKafka(true)
+
+    val sink = stream.addSink(producer)
+    afterSink(sink, parallelism, name, uid)
+  }
+
+  def sinkSerializer[T](stream: DataStream[T],
+              alias: String = "",
+              topic: String = "",
+              serializer: KafkaSerializationSchema[T]): DataStreamSink[T] = {
+
+    val producer = {
+      val prop = ConfigUtils.getKafkaSinkConf(ctx.parameter.toMap, topic, alias)
+      Utils.copyProperties(property, prop)
+      val topicId = prop.remove(ConfigConst.KEY_KAFKA_TOPIC).toString
+      /**
+       * EXACTLY_ONCE语义下会使用到 kafkaProducersPoolSize
+       */
+      val semantic = Try(Some(prop.remove(ConfigConst.KEY_KAFKA_SEMANTIC).toString.toUpperCase)).getOrElse(None) match {
+        case None => Semantic.AT_LEAST_ONCE //默认采用AT_LEAST_ONCE
+        case Some("AT_LEAST_ONCE") => Semantic.AT_LEAST_ONCE
+        case Some("EXACTLY_ONCE") => Semantic.EXACTLY_ONCE
+        case Some("NONE") => Semantic.NONE
+        case _ => throw new IllegalArgumentException("[StreamX] kafka.sink semantic error,must be (AT_LEAST_ONCE|EXACTLY_ONCE|NONE) ")
+      }
+      new FlinkKafkaProducer[T](topicId, serializer, prop, semantic)
     }
 
     /**
